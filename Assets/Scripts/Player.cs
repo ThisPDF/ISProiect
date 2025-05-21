@@ -8,21 +8,20 @@ public class Player : MonoBehaviour
     public int health = 100;
     public float moveSpeed = 5f;
     public float rotationSpeed = 10f;
-    
+
     [Header("Combat")]
     public int damage = 20;
-    public float attackRange = 2f;
     public float attackCooldown = 1f;
-    public LayerMask enemyLayerMask;
-    
+    public float projectileForce = 20f;
+    public GameObject projectilePrefab;
+
     private float attackTimer = 0f;
     private CharacterController characterController;
     private Vector3 moveDirection = Vector3.zero;
     private float gravity = 20f;
-    
+
     void Start()
     {
-        // Get or add a CharacterController
         characterController = GetComponent<CharacterController>();
         if (characterController == null)
         {
@@ -31,110 +30,91 @@ public class Player : MonoBehaviour
             characterController.height = 2f;
             characterController.radius = 0.5f;
         }
-        
-        // Make sure the player has the "Player" tag
+
         gameObject.tag = "Player";
     }
-    
+
     void Update()
     {
-        // Cooldown timer
         if (attackTimer > 0)
-        {
             attackTimer -= Time.deltaTime;
-        }
-        
-        // Movement
+
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
-        
-        // Calculate movement direction in world space
+
         Vector3 forward = Camera.main.transform.forward;
         Vector3 right = Camera.main.transform.right;
-        
-        // Project vectors onto the horizontal plane
+
         forward.y = 0;
         right.y = 0;
         forward.Normalize();
         right.Normalize();
-        
-        // Calculate the move direction relative to the camera
-        moveDirection = (forward * vertical + right * horizontal).normalized;
-        
-        // Apply movement speed
-        moveDirection *= moveSpeed;
-        
-        // Apply gravity
+
+        moveDirection = (forward * vertical + right * horizontal).normalized * moveSpeed;
+
         if (!characterController.isGrounded)
         {
             moveDirection.y -= gravity * Time.deltaTime;
         }
         else
         {
-            moveDirection.y = -0.5f; // Small downward force when grounded
+            moveDirection.y = -0.5f;
         }
-        
-        // Move the character
+
         characterController.Move(moveDirection * Time.deltaTime);
-        
-        // Rotate the character to face the movement direction
+
         if (moveDirection.x != 0 || moveDirection.z != 0)
         {
             Vector3 lookDirection = new Vector3(moveDirection.x, 0, moveDirection.z);
             transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookDirection), rotationSpeed * Time.deltaTime);
         }
-        
-        // Attack input
+
         if (Input.GetMouseButtonDown(0) && attackTimer <= 0)
         {
             Attack();
         }
     }
-    
+
     void Attack()
     {
-        Debug.Log("Player attacked!");
-        
-        // Check for enemies in attack range
-        Collider[] hitColliders = Physics.OverlapSphere(transform.position + transform.forward, attackRange, enemyLayerMask);
-        
-        foreach (Collider hitCollider in hitColliders)
+        Debug.Log("Player fired projectile!");
+
+        if (projectilePrefab != null)
         {
-            Enemy enemy = hitCollider.GetComponent<Enemy>();
-            if (enemy != null)
+            Vector3 spawnPos = transform.position + transform.forward + Vector3.up * 1f;
+            GameObject projectile = Instantiate(projectilePrefab, spawnPos, Quaternion.identity);
+
+            Rigidbody rb = projectile.GetComponent<Rigidbody>();
+            if (rb != null)
             {
-                enemy.TakeDamage(damage);
-                Debug.Log("Hit enemy for " + damage + " damage");
+                rb.AddForce(transform.forward * projectileForce, ForceMode.Impulse);
+            }
+
+            // Setează damage pe proiectil
+            Projectile projectileScript = projectile.GetComponent<Projectile>();
+            if (projectileScript != null)
+            {
+                projectileScript.damage = damage;
             }
         }
-        
-        // Set cooldown
+
         attackTimer = attackCooldown;
     }
-    
-    public void TakeDamage(int damage)
+
+    public void TakeDamage(int amount)
     {
-        health -= damage;
-        Debug.Log("Player took " + damage + " damage. Health: " + health);
-        
+        health -= amount;
+        Debug.Log("Player took " + amount + " damage. Health: " + health);
+
         if (health <= 0)
         {
             Die();
         }
     }
-    
+
     void Die()
     {
         Debug.Log("Player defeated!");
-        // You could respawn the player or show a game over screen
-        // For now, just disable controls
         this.enabled = false;
-    }
-    
-    // Draw the attack range in the editor
-    void OnDrawGizmosSelected()
-    {
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position + transform.forward, attackRange);
     }
 }
